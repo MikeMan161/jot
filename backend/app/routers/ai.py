@@ -1,4 +1,4 @@
-"""Free-text transaction parsing. Returns drafts for the user to confirm — nothing is saved here."""
+"""Free-text transaction parsing. Returns drafts for the user to confirm in a manual entry window. Nothing is submitted here."""
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
