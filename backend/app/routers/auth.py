@@ -68,9 +68,17 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
 
 
 @router.post("/auth/demo", response_model=Token)
-# Each call creates an account and ~35 rows of sample data, so this is the gate on
-# someone looping the demo button to fill the database.
-@limiter.limit("5/hour")
+# Keyed by IP because there is no user yet, which makes this limit coarse on shared
+# networks: a lecture hall, a conference room of judges, and a ColorStack event all
+# look like one client. 30/hour leaves room for a crowd on one connection while still
+# slowing a script down.
+#
+# It can afford to be loose because it is no longer carrying cost protection. The
+# ceiling on what demo accounts can spend is the global daily cap in services/usage.py,
+# which counts across every demo account and survives their purge — so creating more
+# accounts no longer buys more AI calls. This limit only exists to stop someone filling
+# the database with sample rows.
+@limiter.limit("30/hour")
 async def start_demo(request: Request, db: Session = Depends(get_db)):
     """
     Create a throwaway account preloaded with sample data and return a token for it.

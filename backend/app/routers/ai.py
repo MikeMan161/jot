@@ -31,13 +31,20 @@ async def parse_transaction(
     current_user: Users = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    count, limit = record_ai_call(db, current_user)
-    if count > limit:
-        # Coach, not judge — and it points at the exit that still works.
-        raise HTTPException(
-            status_code=429,
-            detail="You've hit today's limit for AI entry. Manual entry still works, and the limit resets tomorrow."
-        )
+    quota = record_ai_call(db, current_user)
+    if not quota.allowed:
+        # Coach, not judge — and both messages point at something that still works.
+        if quota.exceeded == "global":
+            detail = (
+                "Demo accounts have used up today's shared AI allowance. "
+                "Manual entry still works, and a free account comes with its own."
+            )
+        else:
+            detail = (
+                "You've hit today's limit for AI entry. "
+                "Manual entry still works, and the limit resets tomorrow."
+            )
+        raise HTTPException(status_code=429, detail=detail)
 
     try:
         # parse_transaction_with_claude is fully synchronous: a blocking psycopg2 query

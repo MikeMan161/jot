@@ -47,6 +47,22 @@ class AiUsage(Base):
 
     user = relationship("Users", back_populates="ai_usage")
 
+class UsageCounters(Base):
+    """
+    Counters that must outlive the rows they describe, keyed by an arbitrary scope
+    string rather than by a user.
+
+    This is separate from AiUsage on purpose. AiUsage.user_id cascade-deletes with the
+    user, and demo accounts are purged every two hours, so a global total derived by
+    summing AiUsage over demo users would reset as accounts cycle — which is the exact
+    pattern a global cap has to catch. No foreign key here means no cascade.
+    """
+    __tablename__ = "usage_counters"
+
+    scope = Column(String(64), primary_key=True)
+    usage_date = Column(Date, primary_key=True)
+    count = Column(Integer, nullable=False, server_default="0")
+
 class Buckets(Base):
     __tablename__ = "buckets"
 
