@@ -28,7 +28,11 @@ def get_client() -> anthropic.Anthropic:
     """
     global _client
     if _client is None:
-        _client = anthropic.Anthropic()
+        # The SDK defaults to a 10-minute timeout and 2 retries, so one hung call
+        # could hold a threadpool worker for half an hour. A parse that has not
+        # come back in 20 seconds has already failed the user; the route catches
+        # the timeout and returns the manual-entry fallback message.
+        _client = anthropic.Anthropic(timeout=20.0, max_retries=1)
     return _client
 
 
