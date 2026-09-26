@@ -4,6 +4,7 @@ __pycache__/
 *.pyc
 .env
 .env.*
+.env.prod
 .git/
 alembic/versions/__pycache__/
 # This file fully replaces .gitignore for EB: once it exists the CLI stops consulting

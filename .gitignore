@@ -212,3 +212,5 @@ __marimo__/
 
 # Claude Skills
 *.skill
+
+.env.prod

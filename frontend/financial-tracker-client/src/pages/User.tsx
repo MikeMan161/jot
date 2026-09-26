@@ -54,7 +54,7 @@ export default function UserPage({ token, clearToken }: UserPageProps) {
     if (!token) return <Navigate to="/" replace />;
 
     return (
-        <div className="p-8 flex flex-col gap-4 h-full">
+        <div className="p-4 sm:p-8 flex flex-col gap-4 h-full">
             <h1 className="text-2xl font-bold">Account</h1>
 
             <Card className="max-w-xl">
