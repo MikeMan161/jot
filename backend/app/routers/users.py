@@ -45,9 +45,18 @@ async def change_password(
     current_user: Users = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    # A demo account has no password anyone knows — it was created with a random secret
+    # that is never stored. Letting a visitor set one would turn a throwaway account
+    # into a real login that then gets deleted out from under them two hours later.
+    if current_user.is_demo:
+        raise HTTPException(
+            status_code=403,
+            detail="Demo accounts can't change their password. Sign up for a free account to keep your data.",
+        )
+
     if not verify_password(payload.current_password, current_user.password_hash):
         raise HTTPException(status_code=401, detail="Current Password is incorrect")
-    
+
     current_user.password_hash = hash_password(payload.new_password)
     db.commit()
     return {"message": "Password updated successfully"}
