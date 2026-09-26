@@ -118,7 +118,11 @@ TLS terminates at the load balancer; the application itself only ever speaks pla
 
 **bcrypt is called directly instead of through passlib.** passlib's internal version check crashes on startup against bcrypt 4.x. Dropping the wrapper is a two-line change and removes a dependency.
 
-**`Base.metadata.create_all()` shipped before Alembic.** This is a sequencing decision with a stated trigger condition, not an omission: `create_all` is sufficient for an empty database, and it becomes insufficient the moment a column needs to change on live data. That's the point at which migrations land — see the roadmap.
+**`Base.metadata.create_all()` shipped before Alembic.** This was a sequencing decision with a stated trigger condition, not an omission: `create_all` is sufficient for an empty database, and it becomes insufficient the moment a column needs to change on live data. That condition fired when demo accounts needed a `users.is_demo` column, and **Alembic is now the source of truth for schema changes** (`backend/alembic/`).
+
+**Alembic was adopted by baselining, not by autogenerating.** The first revision is deliberately empty and was applied with `alembic stamp head`: the seven tables already existed, so the baseline records "everything up to here is already present" rather than trying to recreate it. `--autogenerate` is intentionally not used yet — the models and the original hand-written DDL have drifted in harmless ways (bare `String` in the models, `VARCHAR(255)` in the DDL), and autogenerate would emit column-type rewrites against live data alongside any real change. Revisions are hand-written until that drift is reconciled. One consequence: a brand-new empty database still needs `database/migrations/001_create_tables.sql` to bootstrap, because `alembic upgrade head` starts *after* the baseline.
+
+**Rate limiting is split across two mechanisms.** Per-minute burst limits live in process memory via `slowapi` (correct here because gunicorn runs a single worker, so one process holds every counter), and a per-user daily cap on the AI endpoint lives in Postgres (`ai_usage`). The split is deliberate: memory resets on every redeploy, and the Anthropic bill does not. Limits are applied as per-route decorators rather than through `SlowAPIMiddleware`, so the 429 is raised inside the route and still passes through the CORS middleware — a limit breach raised in middleware comes back without CORS headers and the browser misreports it as a CORS failure.
 
 ---
 
@@ -219,10 +223,12 @@ Financial-Dashboard/
 │   │   │                     #   debts, income, savings_goals, ai
 │   │   └── services/
 │   │       └── ai.py         # Natural-language transaction parsing
+│   ├── alembic/              # Migrations — source of truth for schema changes
+│   ├── alembic.ini           # URL deliberately blank; env.py reads DATABASE_URL
 │   ├── Procfile              # ASGI worker override for Elastic Beanstalk
 │   └── requirements.txt
 ├── database/
-│   ├── migrations/           # Initial DDL (superseded by the models as source of truth)
+│   ├── migrations/           # Original DDL — still needed to bootstrap an empty database
 │   └── erd.drawio            # Entity-relationship diagram
 ├── frontend/
 │   └── financial-tracker-client/
@@ -240,7 +246,8 @@ Financial-Dashboard/
 ## Roadmap
 
 **Near term**
-- Alembic migrations — required before the first schema change against live data
+- Reconcile model/DDL drift so Alembic `--autogenerate` is safe to run
+- Backfill the empty baseline revision with real `CREATE TABLE` statements, so a fresh database can be built from `alembic upgrade head` alone
 - Migrating auth to httpOnly cookies + refresh-token flow
 - Route-level code splitting to cut the initial bundle
 - CloudFront SPA error mapping so deep links survive a refresh
