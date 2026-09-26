@@ -26,11 +26,11 @@ export default function App() {
   }
   return (
     <Routes>
-      <Route path="/" element={<LandingPage/>} />
+      <Route path="/" element={<LandingPage setToken={saveToken} />} />
       <Route path="/Login" element={<LoginPage setToken={saveToken} />} />
       <Route path="/SignUp" element={<Register setToken={saveToken} />} />
 
-      <Route element ={<AppLayout />} >
+      <Route element ={<AppLayout token={token} />} >
         <Route path="/Dashboard" element={<Dashboard token={token} clearToken={clearToken} />} />
         <Route path="/Buckets" element={<Buckets token={token} clearToken={clearToken} />} />
         <Route path="/Transactions/:bucketId?" element={<Transactions token={token} clearToken={clearToken} />} />

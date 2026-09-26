@@ -1,7 +1,13 @@
-import { Link } from "react-router"
-import { Compass, MessageSquareText, Wallet } from "lucide-react"
+import { useState } from "react"
+import { Link, useNavigate } from "react-router"
+import { Compass, Loader2, MessageSquareText, Wallet } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Logo from "@/components/Logo"
+import { startDemo } from "@/api/auth"
+
+type LandingPageProps = {
+    setToken: (token: string) => void
+}
 
 // Three, because three is scannable and four starts reading as a feature list.
 // Order is deliberate: the system, then the differentiator, then the philosophy.
@@ -23,7 +29,27 @@ const points = [
     },
 ]
 
-export default function LandingPage() {
+export default function LandingPage({ setToken }: LandingPageProps) {
+    const navigate = useNavigate()
+    const [starting, setStarting] = useState(false)
+    const [demoError, setDemoError] = useState<string | null>(null)
+
+    // Seeding an account takes a beat, so the button has to show it is working —
+    // otherwise it reads as dead and gets clicked again, which burns another of the
+    // five-per-hour allowance on the endpoint.
+    async function handleStartDemo() {
+        setStarting(true)
+        setDemoError(null)
+        try {
+            const token = await startDemo()
+            setToken(token)
+            navigate("/Dashboard")
+        } catch (err) {
+            setDemoError(err instanceof Error ? err.message : "Could not start the demo")
+            setStarting(false)
+        }
+    }
+
     return (
         <div className="flex min-h-svh flex-col bg-background text-foreground">
             <header className="flex items-center justify-between p-6">
@@ -56,9 +82,45 @@ export default function LandingPage() {
                         what&rsquo;s free to spend. Just tell it what you bought &mdash; it does the rest.
                     </p>
 
-                    <Button size="lg" className="mt-10 h-12 rounded-xl px-8 text-base" render={<Link to="/SignUp" />}>
-                        Get started
-                    </Button>
+                    {/* Two actions, ranked. Signing up stays the primary; the demo is
+                        the lower-commitment path for someone who will not create an
+                        account to find out what this is. Stacks on phones, where the
+                        demo link is most likely to be tapped. */}
+                    <div className="mt-10 flex w-full flex-col items-center gap-3 sm:w-auto sm:flex-row">
+                        <Button
+                            size="lg"
+                            className="h-12 w-full rounded-xl px-8 text-base sm:w-auto"
+                            render={<Link to="/SignUp" />}
+                        >
+                            Get started
+                        </Button>
+                        <Button
+                            size="lg"
+                            variant="outline"
+                            className="h-12 w-full rounded-xl px-8 text-base sm:w-auto"
+                            onClick={handleStartDemo}
+                            disabled={starting}
+                        >
+                            {starting ? (
+                                <>
+                                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                                    Setting up your demo
+                                </>
+                            ) : (
+                                "Try the demo"
+                            )}
+                        </Button>
+                    </div>
+
+                    <p className="mt-4 text-sm text-muted-foreground">
+                        No signup required. Demo data resets after a couple of hours.
+                    </p>
+
+                    {demoError && (
+                        <p role="alert" className="mt-3 text-sm text-destructive">
+                            {demoError}
+                        </p>
+                    )}
                 </section>
 
                 <section className="grid w-full max-w-4xl gap-10 pb-24 sm:grid-cols-3">

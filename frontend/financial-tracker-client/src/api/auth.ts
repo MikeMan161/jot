@@ -30,6 +30,21 @@ export async function login(email: string, password: string): Promise<string> {
     return data.access_token;
 }
 
+// Creates a throwaway account server-side and returns its token. Like login, it
+// deliberately does not use apiFetch: the caller is logged out by definition, so a
+// failure here is not an expired session and must not raise AuthError.
+export async function startDemo(): Promise<string> {
+    const response = await fetch(`${API_URL}/auth/demo`, { method: "POST" });
+
+    if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(extractDetail(data, "Could not start the demo"));
+    }
+
+    const data = await response.json();
+    return data.access_token;
+}
+
 export async function register(request: AccountCreate): Promise<UserResponse> {
     const response = await fetch(`${API_URL}/auth/register`, {
         method: "POST",

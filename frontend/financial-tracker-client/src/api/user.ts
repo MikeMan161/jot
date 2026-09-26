@@ -7,6 +7,9 @@ export type UserResponse = {
     email: string;
     currency: string;
     monthly_income: number;
+    // True for throwaway accounts created by the "Try the demo" button. Drives the
+    // banner that warns the data is temporary.
+    is_demo: boolean;
 }
 
 export type UpdatePasswordRequest = {
