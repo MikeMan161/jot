@@ -97,7 +97,7 @@ export default function Buckets({ token, clearToken }: BucketsProps) {
         : `Every dollar has a job.`
 
     return (
-        <div className="p-8 flex flex-col gap-4 h-full">
+        <div className="p-4 sm:p-8 flex flex-col gap-4 h-full">
             <h1 className="text-2xl font-bold">Your Buckets</h1>
 
             {!buckets ? (

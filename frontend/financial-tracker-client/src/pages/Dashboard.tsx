@@ -100,8 +100,8 @@ export default function Dashboard({ token, clearToken }: DashboardProps) {
     if (!token) return <Navigate to="/" replace />;
 
     return (
-    <div className="p-8 flex flex-col gap-2 h-full">
-      <div className="grid grid-cols-2">
+    <div className="p-4 sm:p-8 flex flex-col gap-4 h-full">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {bucketInfo && bucketInfo.map((bucket) => (
           <BucketCard
             key={bucket.id}

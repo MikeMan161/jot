@@ -78,7 +78,7 @@ export function BucketCard( { id, name, limit, spent }: BucketCardProps) {
                 pinned ~17% up from the bottom to rest inside the dome rather than
                 in the middle of the SVG's bounding box. */}
             <div className="absolute inset-x-0 bottom-[17%] flex flex-col items-center">
-              <span className="text-2xl font-semibold tabular-nums">
+              <span className="text-xl sm:text-2xl font-semibold tabular-nums">
                 ${amount.toFixed(2)}
               </span>
               <span className="text-xs text-muted-foreground">{caption}</span>
