@@ -4,7 +4,7 @@ cascade rules are easy to reason about together. These models are the single sou
 of truth for the database schema in Python. The SQL migration in
 database/migrations/ should always match what is defined here.
 """
-from sqlalchemy import Column, String, Numeric, Boolean, ForeignKey, text, DateTime
+from sqlalchemy import Column, String, Numeric, Boolean, ForeignKey, text, DateTime, Date, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -20,6 +20,9 @@ class Users(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=text("now()"))
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=text("now()"), onupdate=text("now()"))
     monthly_income = Column(Numeric(10,2), server_default="0")
+    # Marks a throwaway account created by POST /auth/demo. Demo rows are purged on
+    # age, so created_at above is the cleanup key — there is no separate timestamp.
+    is_demo = Column(Boolean, nullable=False, server_default=text("false"))
 
     buckets = relationship("Buckets", back_populates="user", cascade="all, delete")
     categories = relationship("Categories", back_populates="user", cascade="all, delete")
@@ -27,6 +30,22 @@ class Users(Base):
     savings_goals = relationship("SavingsGoals", back_populates="user", cascade="all, delete")
     income = relationship("Income", back_populates="user", cascade="all, delete")
     debts = relationship("Debts", back_populates="user", cascade="all, delete")
+    ai_usage = relationship("AiUsage", back_populates="user", cascade="all, delete")
+
+class AiUsage(Base):
+    """
+    One row per user per day, counting calls to the paid AI endpoint. This lives in
+    Postgres rather than in the in-process limiter because the per-minute burst limits
+    only need to survive seconds, while the daily cost cap has to survive a redeploy —
+    the process restarts, the Anthropic bill does not.
+    """
+    __tablename__ = "ai_usage"
+
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    usage_date = Column(Date, primary_key=True)
+    count = Column(Integer, nullable=False, server_default="0")
+
+    user = relationship("Users", back_populates="ai_usage")
 
 class Buckets(Base):
     __tablename__ = "buckets"
