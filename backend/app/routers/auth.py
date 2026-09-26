@@ -1,4 +1,6 @@
-"""Registration and login endpoints."""
+"""Registration, login, and throwaway demo accounts."""
+import logging
+
 from app.schemas.user import UserCreate, UserResponse, Token
 from app.database import get_db
 from app.models.models import Users
@@ -6,14 +8,21 @@ from app.auth import hash_password, create_access_token, verify_password
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from app.services.seeding import seed_default_buckets
+from app.services.demo import create_demo_user, purge_expired_demo_users
+from app.limiter import limiter
 
-router = APIRouter() 
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
 
 @router.post("/auth/register", response_model=UserResponse) #endpoint for user registration
-async def register(user: UserCreate, db: Session = Depends(get_db)):
+# Registration is open and /docs is public, so this is the gate on someone scripting
+# accounts to get at the AI endpoint. `request` is required by slowapi, not by the body.
+@limiter.limit("5/hour")
+async def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
     existing_user = db.query(Users).filter(
         or_(Users.email == user.email, Users.username == user.username)
     ).first()
@@ -46,10 +55,68 @@ async def register(user: UserCreate, db: Session = Depends(get_db)):
     return new_user
 
 @router.post("/auth/login", response_model=Token) #endpoint for user login
-async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+# Loose enough for someone fumbling their password, tight enough that the endpoint is
+# not a credential-stuffing target.
+@limiter.limit("10/minute")
+async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(Users).filter(Users.email == form_data.username).first()
     if user is None or not verify_password(form_data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
-        
+
+    access_token = create_access_token(data={"sub": str(user.id)})
+    return Token(access_token=access_token, token_type="bearer")
+
+
+@router.post("/auth/demo", response_model=Token)
+# Keyed by IP because there is no user yet, which makes this limit coarse on shared
+# networks: a lecture hall, a conference room of judges, and a ColorStack event all
+# look like one client. 30/hour leaves room for a crowd on one connection while still
+# slowing a script down.
+#
+# It can afford to be loose because it is no longer carrying cost protection. The
+# ceiling on what demo accounts can spend is the global daily cap in services/usage.py,
+# which counts across every demo account and survives their purge — so creating more
+# accounts no longer buys more AI calls. This limit only exists to stop someone filling
+# the database with sample rows.
+@limiter.limit("30/hour")
+async def start_demo(request: Request, db: Session = Depends(get_db)):
+    """
+    Create a throwaway account preloaded with sample data and return a token for it.
+
+    There is no password involved. The account is created server-side and the endpoint
+    hands back the same JWT that /auth/login would issue for it, so the browser is
+    logged in by the existing token flow — nothing about session handling is special
+    for demo users.
+    """
+    # Cleanup rides on the demo path so there is no scheduled job to run on Elastic
+    # Beanstalk. It is committed separately and failure is swallowed: an expired
+    # account that sticks around is a cosmetic problem, but a purge error that blocks
+    # a judge from starting a demo is not.
+    try:
+        if purge_expired_demo_users(db):
+            db.commit()
+    except Exception:
+        logger.exception("Demo cleanup failed; continuing with demo creation")
+        db.rollback()
+
+    try:
+        user = create_demo_user(db)
+        db.commit()
+    except IntegrityError:
+        # The random suffix collided with a live demo account, which is close enough
+        # to impossible to be worth one retry rather than a loop.
+        db.rollback()
+        try:
+            user = create_demo_user(db)
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            logger.exception("Demo user creation failed twice on a unique constraint")
+            raise HTTPException(
+                status_code=503,
+                detail="Could not start a demo just now. Please try again.",
+            )
+
+    db.refresh(user)
     access_token = create_access_token(data={"sub": str(user.id)})
     return Token(access_token=access_token, token_type="bearer")

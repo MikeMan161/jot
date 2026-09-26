@@ -57,6 +57,9 @@ class UserResponse(BaseModel):
     created_at: datetime
     currency: str
     monthly_income: float
+    # Exposed so the client can show the "this resets in a couple of hours" banner and
+    # steer demo visitors toward signing up. Not a secret — the visitor already knows.
+    is_demo: bool
 
 class UserInDB(UserResponse):
 

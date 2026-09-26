@@ -5,7 +5,7 @@ import type { BucketResponse } from '@/api/bucket';
 import { getBuckets } from '@/api/bucket';
 import type { CategoryResponse } from '@/api/category';
 import { getCategories } from '@/api/category';
-import { AuthError } from '@/api/client';
+import { AuthError, RateLimitError } from '@/api/client';
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import ManualEntryDialog from '@/components/ManualEntryDialog'
@@ -29,6 +29,9 @@ export default function Dashboard({ token, clearToken }: DashboardProps) {
     const [draftKey, setDraftKey] = useState(0)
     const [prompt, setPrompt] = useState("")
     const [isParsing, setIsParsing] = useState(false)
+    // Shown under the entry box. A rate limit is the one AI failure the user can act
+    // on, so it needs to say so rather than disappear into the console.
+    const [parseError, setParseError] = useState<string | null>(null)
     // Bumped after a save so the bucket effect re-runs and the spent figures pick
     // up the transactions that just landed.
     const [refreshKey, setRefreshKey] = useState(0)
@@ -45,6 +48,7 @@ export default function Dashboard({ token, clearToken }: DashboardProps) {
         if (!token || !text || isParsing) return
 
         setIsParsing(true)
+        setParseError(null)
         try {
             const parsed = await parseTransaction(text, token, today())
             // Nothing recognized still opens the dialog on a blank row. Silently
@@ -56,7 +60,12 @@ export default function Dashboard({ token, clearToken }: DashboardProps) {
             if (err instanceof AuthError) {
                 clearToken()
                 navigate("/")
+            } else if (err instanceof RateLimitError) {
+                // The prompt is deliberately left in the box — the user should not
+                // have to retype what they just wrote to retry it later.
+                setParseError(err.message)
             } else {
+                setParseError("Something went wrong reading that. Manual entry still works.")
                 console.error(err)
             }
         } finally {
@@ -119,6 +128,11 @@ export default function Dashboard({ token, clearToken }: DashboardProps) {
           {isParsing ? "Reading…" : "Send"}
         </Button>
       </div>
+      {parseError && (
+        <p role="alert" className="text-sm text-destructive">
+          {parseError}
+        </p>
+      )}
       <Button
         className="self-center"
         variant="secondary"

@@ -6,3 +6,8 @@ __pycache__/
 .env.*
 .git/
 alembic/versions/__pycache__/
+# This file fully replaces .gitignore for EB: once it exists the CLI stops consulting
+# git and zips the working directory, so anything git-ignored still ships unless it is
+# listed here. node_modules has no business in a Python service, but a stray npm install
+# in backend/ has happened before and would otherwise go straight into production.
+node_modules/
